@@ -1,0 +1,53 @@
+version: 2
+
+project_name: podread
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - binary: podread
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X 'github.com/jspevack/podread-cli/internal/api.Version={{.Version}}'
+      - -X 'github.com/jspevack/podread-cli/internal/api.Commit={{.ShortCommit}}'
+      - -X 'github.com/jspevack/podread-cli/internal/api.Date={{.Date}}'
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: jesse-spevack
+    name: podread-cli
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"

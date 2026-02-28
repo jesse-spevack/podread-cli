@@ -62,6 +62,11 @@ type episodeResponse struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+// episodeShowResponse is the response from GET /api/v1/episodes/:id.
+type episodeShowResponse struct {
+	Episode episodeResponse `json:"episode"`
+}
+
 // episodeListResponse is the response from GET /api/v1/episodes.
 type episodeListResponse struct {
 	Episodes []episodeResponse `json:"episodes"`
@@ -173,7 +178,8 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 		}
 		time.Sleep(3 * time.Second)
 
-		if err := client.Get("/api/v1/episodes/"+url.PathEscape(ep.ID), &ep); err != nil {
+		var showResp episodeShowResponse
+		if err := client.Get("/api/v1/episodes/"+url.PathEscape(ep.ID), &showResp); err != nil {
 			var apiErr *api.APIError
 			if errors.As(err, &apiErr) {
 				// Server returned an error status — this is not transient, bail.
@@ -187,6 +193,7 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: connection error, retrying... (%d/%d)\n", consecutiveErrors, maxConsecutiveErrors)
 			continue
 		}
+		ep = showResp.Episode
 		consecutiveErrors = 0 // Reset on success
 
 		if ep.Status != lastStatus {
@@ -225,12 +232,12 @@ func runEpisodeStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var ep episodeResponse
-	if err := client.Get("/api/v1/episodes/"+url.PathEscape(args[0]), &ep); err != nil {
+	var resp episodeShowResponse
+	if err := client.Get("/api/v1/episodes/"+url.PathEscape(args[0]), &resp); err != nil {
 		return fmt.Errorf("fetching episode: %w", err)
 	}
 
-	return printEpisode(cmd, ep, jsonFlag)
+	return printEpisode(cmd, resp.Episode, jsonFlag)
 }
 
 // --- episode list ---

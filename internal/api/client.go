@@ -12,8 +12,12 @@ import (
 	"github.com/jspevack/podread-cli/internal/config"
 )
 
-// Version is the CLI version, set at build time via ldflags.
-var Version = "dev"
+// Build info variables, set at build time via ldflags.
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
 
 const (
 	// DefaultTimeout is the default HTTP request timeout.

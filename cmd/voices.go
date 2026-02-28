@@ -15,10 +15,10 @@ func init() {
 
 // voiceResponse is a single voice from the API.
 type voiceResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Language string `json:"language,omitempty"`
-	Preview  string `json:"preview_url,omitempty"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Accent string `json:"accent,omitempty"`
+	Gender string `json:"gender,omitempty"`
 }
 
 // voicesListResponse is the response from GET /api/v1/voices.
@@ -60,10 +60,14 @@ func runVoices(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-10s  %-10s  %s\n", "ID", "NAME", "ACCENT", "GENDER")
 	for _, v := range resp.Voices {
-		line := fmt.Sprintf("%-20s %s", v.ID, v.Name)
-		if v.Language != "" {
-			line += fmt.Sprintf("  (%s)", v.Language)
+		line := fmt.Sprintf("%-12s %-10s", v.ID, v.Name)
+		if v.Accent != "" {
+			line += fmt.Sprintf("  %-10s", v.Accent)
+		}
+		if v.Gender != "" {
+			line += fmt.Sprintf("  %s", v.Gender)
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}

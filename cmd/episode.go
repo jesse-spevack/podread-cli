@@ -25,9 +25,9 @@ func init() {
 	episodeCreateCmd.Flags().String("text", "", "Text to convert to audio")
 	episodeCreateCmd.Flags().Bool("stdin", false, "Read text from stdin")
 	episodeCreateCmd.Flags().String("title", "", "Episode title")
-	episodeCreateCmd.Flags().String("voice", "", "Voice to use for synthesis")
-	episodeCreateCmd.Flags().Bool("wait", true, "Wait for processing to complete")
+	episodeCreateCmd.Flags().String("voice", "", "Voice to use (see 'podread voices')")
 	episodeCreateCmd.Flags().Bool("no-wait", false, "Do not wait for processing to complete")
+	episodeCreateCmd.Flags().Int("timeout", 600, "Maximum seconds to wait for processing")
 	episodeCreateCmd.Flags().Bool("json", false, "Output as JSON")
 
 	// episode status flags
@@ -51,15 +51,14 @@ type episodeCreateRequest struct {
 
 // episodeResponse is the response from the episodes API.
 type episodeResponse struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	SourceURL string `json:"source_url,omitempty"`
-	AudioURL  string `json:"audio_url,omitempty"`
-	Duration  int    `json:"duration,omitempty"`
-	Voice     string `json:"voice,omitempty"`
-	CreatedAt string `json:"created_at"`
-	Error     string `json:"error,omitempty"`
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	Status          string `json:"status"`
+	SourceType      string `json:"source_type,omitempty"`
+	SourceURL       string `json:"source_url,omitempty"`
+	DurationSeconds int    `json:"duration_seconds,omitempty"`
+	ErrorMessage    string `json:"error_message,omitempty"`
+	CreatedAt       string `json:"created_at"`
 }
 
 // episodeListResponse is the response from GET /api/v1/episodes.
@@ -98,9 +97,10 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	titleFlag, _ := cmd.Flags().GetString("title")
 	voiceFlag, _ := cmd.Flags().GetString("voice")
 	noWaitFlag, _ := cmd.Flags().GetBool("no-wait")
+	timeoutFlag, _ := cmd.Flags().GetInt("timeout")
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 
-	// Determine wait behavior: --no-wait overrides --wait.
+	// Determine wait behavior.
 	shouldWait := !noWaitFlag
 
 	// Validate exactly one source is provided.
@@ -160,13 +160,32 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	// Poll until complete or failed.
 	fmt.Fprintf(cmd.ErrOrStderr(), "Processing episode %s...\n", ep.ID)
 
+	deadline := time.Now().Add(time.Duration(timeoutFlag) * time.Second)
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
+
 	lastStatus := ep.Status
 	for ep.Status != "complete" && ep.Status != "failed" {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out after %d seconds waiting for processing; check status with: podread episode status %s", timeoutFlag, ep.ID)
+		}
 		time.Sleep(3 * time.Second)
 
 		if err := client.Get("/api/v1/episodes/"+ep.ID, &ep); err != nil {
-			return fmt.Errorf("checking episode status: %w", err)
+			var apiErr *api.APIError
+			if errors.As(err, &apiErr) {
+				// Server returned an error status — this is not transient, bail.
+				return fmt.Errorf("checking episode status: %w", err)
+			}
+			// Network/transient error — log and retry.
+			consecutiveErrors++
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return fmt.Errorf("checking episode status after %d consecutive errors: %w", maxConsecutiveErrors, err)
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: connection error, retrying... (%d/%d)\n", consecutiveErrors, maxConsecutiveErrors)
+			continue
 		}
+		consecutiveErrors = 0 // Reset on success
 
 		if ep.Status != lastStatus {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Status: %s\n", ep.Status)
@@ -176,8 +195,8 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 
 	if ep.Status == "failed" {
 		msg := "episode processing failed"
-		if ep.Error != "" {
-			msg += ": " + ep.Error
+		if ep.ErrorMessage != "" {
+			msg += ": " + ep.ErrorMessage
 		}
 		return fmt.Errorf(msg)
 	}
@@ -251,6 +270,7 @@ func runEpisodeList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	fmt.Fprintf(cmd.OutOrStdout(), "%s  %-12s  %s\n", "ID", "STATUS", "TITLE")
 	for _, ep := range listResp.Episodes {
 		title := ep.Title
 		if title == "" {
@@ -321,17 +341,11 @@ func printEpisode(cmd *cobra.Command, ep episodeResponse, asJSON bool) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "Title:  %s\n", title)
 	fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", ep.Status)
 
-	if ep.Voice != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Voice:  %s\n", ep.Voice)
+	if ep.DurationSeconds > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "Duration: %ds\n", ep.DurationSeconds)
 	}
-	if ep.Duration > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "Duration: %ds\n", ep.Duration)
-	}
-	if ep.AudioURL != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Audio:  %s\n", ep.AudioURL)
-	}
-	if ep.Error != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Error:  %s\n", ep.Error)
+	if ep.ErrorMessage != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Error:  %s\n", ep.ErrorMessage)
 	}
 
 	return nil

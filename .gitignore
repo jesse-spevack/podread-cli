@@ -1,6 +1,9 @@
 # Binaries
 podread-cli
 podread
+
+# Build output
+dist/
 *.exe
 *.exe~
 *.dll

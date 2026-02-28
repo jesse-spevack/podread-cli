@@ -12,8 +12,12 @@ import (
 	"github.com/jspevack/podread-cli/internal/config"
 )
 
-// Version is the CLI version, set at build time via ldflags.
-var Version = "dev"
+// Build info variables, set at build time via ldflags.
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
 
 const (
 	// DefaultTimeout is the default HTTP request timeout.
@@ -76,6 +80,15 @@ func (c *Client) Post(path string, body interface{}, result interface{}) error {
 		return err
 	}
 	return c.do(req, result)
+}
+
+// Delete performs an authenticated DELETE request.
+func (c *Client) Delete(path string) error {
+	req, err := c.newRequest(http.MethodDelete, path, nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
 }
 
 func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {

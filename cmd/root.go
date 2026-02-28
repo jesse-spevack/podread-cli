@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/jspevack/podread-cli/internal/api"
+	"github.com/jspevack/podread-cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,9 @@ var rootCmd = &cobra.Command{
 	Long: `podread is a command-line interface for podread.app.
 Turn text into podcast episodes delivered to your personal RSS feed.`,
 	Version: api.Version,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return config.ValidateBaseURL()
+	},
 }
 
 // Execute runs the root command.

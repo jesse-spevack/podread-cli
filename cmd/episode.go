@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"time"
 
@@ -130,7 +131,8 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	} else {
 		reqBody.SourceType = "text"
 		if stdinFlag {
-			data, err := io.ReadAll(os.Stdin)
+			const maxStdinSize = 1024 * 1024 // 1 MB
+			data, err := io.ReadAll(io.LimitReader(os.Stdin, maxStdinSize))
 			if err != nil {
 				return fmt.Errorf("reading stdin: %w", err)
 			}
@@ -171,7 +173,7 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 		}
 		time.Sleep(3 * time.Second)
 
-		if err := client.Get("/api/v1/episodes/"+ep.ID, &ep); err != nil {
+		if err := client.Get("/api/v1/episodes/"+url.PathEscape(ep.ID), &ep); err != nil {
 			var apiErr *api.APIError
 			if errors.As(err, &apiErr) {
 				// Server returned an error status — this is not transient, bail.
@@ -224,7 +226,7 @@ func runEpisodeStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	var ep episodeResponse
-	if err := client.Get("/api/v1/episodes/"+args[0], &ep); err != nil {
+	if err := client.Get("/api/v1/episodes/"+url.PathEscape(args[0]), &ep); err != nil {
 		return fmt.Errorf("fetching episode: %w", err)
 	}
 
@@ -298,7 +300,7 @@ func runEpisodeDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := client.Delete("/api/v1/episodes/" + args[0]); err != nil {
+	if err := client.Delete("/api/v1/episodes/" + url.PathEscape(args[0])); err != nil {
 		return fmt.Errorf("deleting episode: %w", err)
 	}
 

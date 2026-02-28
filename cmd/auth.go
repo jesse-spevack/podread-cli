@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/jspevack/podread-cli/internal/api"
@@ -142,8 +141,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	token, err := auth.LoadToken()
 	if err != nil {
 		if errors.Is(err, auth.ErrNoToken) {
-			fmt.Fprintln(cmd.ErrOrStderr(), "Not logged in")
-			os.Exit(1)
+			return fmt.Errorf("not logged in")
 		}
 		return fmt.Errorf("reading token: %w", err)
 	}
@@ -153,8 +151,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if err := client.Get("/api/v1/auth/status", &statusResp); err != nil {
 		var apiErr *api.APIError
 		if errors.As(err, &apiErr) && (apiErr.StatusCode == 401 || apiErr.StatusCode == 403) {
-			fmt.Fprintln(cmd.ErrOrStderr(), "Session expired, run 'podread auth login'")
-			os.Exit(1)
+			return fmt.Errorf("session expired, run 'podread auth login'")
 		}
 		return fmt.Errorf("checking auth status: %w", err)
 	}

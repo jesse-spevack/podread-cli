@@ -2,8 +2,11 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -41,8 +44,32 @@ func TokenPath() (string, error) {
 // BaseURL returns the API base URL. It checks the PODREAD_API_URL environment
 // variable first, falling back to the default production URL.
 func BaseURL() string {
-	if url := os.Getenv(EnvAPIURL); url != "" {
-		return url
+	if u := os.Getenv(EnvAPIURL); u != "" {
+		return u
 	}
 	return DefaultBaseURL
+}
+
+// ValidateBaseURL checks that the API base URL uses HTTPS, allowing HTTP only
+// for localhost development. Returns an error if the URL is insecure.
+func ValidateBaseURL() error {
+	u := BaseURL()
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return fmt.Errorf("invalid API URL %q: %w", u, err)
+	}
+
+	if parsed.Scheme == "https" {
+		return nil
+	}
+
+	if parsed.Scheme == "http" {
+		host := parsed.Hostname()
+		if host == "localhost" || host == "127.0.0.1" {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("API URL must use HTTPS (got %q); HTTP is only allowed for localhost", strings.TrimRight(u, "/"))
 }

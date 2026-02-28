@@ -12,6 +12,11 @@ import (
 	"github.com/jspevack/podread-cli/internal/config"
 )
 
+const (
+	// maxResponseSize is the maximum allowed HTTP response body size (10 MB).
+	maxResponseSize = 10 * 1024 * 1024
+)
+
 // Build info variables, set at build time via ldflags.
 var (
 	Version = "dev"
@@ -52,6 +57,15 @@ func NewClient(token string) *Client {
 		token:   token,
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && req.URL.Host != via[0].URL.Host {
+					req.Header.Del("Authorization")
+				}
+				if len(via) >= 10 {
+					return fmt.Errorf("too many redirects")
+				}
+				return nil
+			},
 		},
 	}
 }
@@ -129,7 +143,7 @@ func (c *Client) do(req *http.Request, result interface{}) error {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
 		return fmt.Errorf("reading response: %w", err)
 	}

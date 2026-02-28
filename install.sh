@@ -87,6 +87,34 @@ main() {
 
   download "$url" "${tmpdir}/${archive}"
 
+  # Verify checksum
+  checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
+  download "$checksum_url" "${tmpdir}/checksums.txt"
+
+  expected_sum="$(grep "${archive}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
+  if [ -z "$expected_sum" ]; then
+    echo "Error: could not find checksum for ${archive} in checksums.txt" >&2
+    exit 1
+  fi
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_sum="$(sha256sum "${tmpdir}/${archive}" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_sum="$(shasum -a 256 "${tmpdir}/${archive}" | awk '{print $1}')"
+  else
+    echo "Warning: sha256sum or shasum not found, skipping checksum verification" >&2
+    actual_sum="$expected_sum"
+  fi
+
+  if [ "$actual_sum" != "$expected_sum" ]; then
+    echo "Error: checksum verification failed" >&2
+    echo "  expected: $expected_sum" >&2
+    echo "  actual:   $actual_sum" >&2
+    exit 1
+  fi
+
+  echo "Checksum verified."
+
   # Extract binary from tar.gz
   tar -xzf "${tmpdir}/${archive}" -C "$tmpdir"
 

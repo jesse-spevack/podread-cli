@@ -88,9 +88,16 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		var tokenResp deviceTokenResponse
 		if err := client.Post("/api/v1/auth/device_tokens", tokenReq, &tokenResp); err != nil {
 			var apiErr *api.APIError
-			if errors.As(err, &apiErr) && apiErr.StatusCode == 400 && apiErr.Message == "authorization_pending" {
-				// Authorization pending — keep polling.
-				continue
+			if errors.As(err, &apiErr) {
+				if apiErr.StatusCode == 400 && apiErr.Message == "authorization_pending" {
+					continue
+				}
+				if apiErr.StatusCode == 429 {
+					// Rate limited — back off and retry.
+					fmt.Fprintln(cmd.ErrOrStderr(), "Rate limited, backing off...")
+					time.Sleep(interval)
+					continue
+				}
 			}
 			return fmt.Errorf("polling for token: %w", err)
 		}

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Install script for the podread CLI.
-# Usage: curl -fsSL https://podread.app/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/jesse-spevack/podread-cli/main/install.sh | sh
 set -e
 
-BASE_URL="${PODREAD_INSTALL_URL:-https://podread.app/cli}"
+REPO="jesse-spevack/podread-cli"
 BINARY_NAME="podread"
 
 detect_os() {
@@ -32,6 +32,17 @@ detect_arch() {
   esac
 }
 
+latest_version() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed 's/.*"tag_name": *"//;s/".*//'
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed 's/.*"tag_name": *"//;s/".*//'
+  else
+    echo "Error: curl or wget is required to install podread." >&2
+    exit 1
+  fi
+}
+
 install_dir() {
   if [ -w /usr/local/bin ]; then
     echo "/usr/local/bin"
@@ -42,23 +53,45 @@ install_dir() {
   fi
 }
 
-main() {
-  os="$(detect_os)"
-  arch="$(detect_arch)"
-  dir="$(install_dir)"
-  url="${BASE_URL}/${BINARY_NAME}-${os}-${arch}"
-  dest="${dir}/${BINARY_NAME}"
-
-  echo "Downloading ${BINARY_NAME} for ${os}/${arch}..."
+download() {
+  url="$1"
+  dest="$2"
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL -o "$dest" "$url"
   elif command -v wget >/dev/null 2>&1; then
     wget -qO "$dest" "$url"
-  else
-    echo "Error: curl or wget is required to download podread." >&2
+  fi
+}
+
+main() {
+  os="$(detect_os)"
+  arch="$(detect_arch)"
+  dir="$(install_dir)"
+
+  echo "Detecting latest podread release..."
+  version="$(latest_version)"
+  if [ -z "$version" ]; then
+    echo "Error: could not determine latest release version." >&2
+    echo "Check https://github.com/${REPO}/releases for available versions." >&2
     exit 1
   fi
 
+  # GoReleaser archive naming: podread_<os>_<arch>.tar.gz
+  archive="podread_${os}_${arch}.tar.gz"
+  url="https://github.com/${REPO}/releases/download/${version}/${archive}"
+
+  echo "Downloading ${BINARY_NAME} ${version} for ${os}/${arch}..."
+
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  download "$url" "${tmpdir}/${archive}"
+
+  # Extract binary from tar.gz
+  tar -xzf "${tmpdir}/${archive}" -C "$tmpdir"
+
+  dest="${dir}/${BINARY_NAME}"
+  mv "${tmpdir}/${BINARY_NAME}" "$dest"
   chmod +x "$dest"
 
   # Verify the binary runs.

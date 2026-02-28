@@ -26,25 +26,24 @@ var authCmd = &cobra.Command{
 
 // --- login ---
 
-// deviceCodeResponse is the response from POST /api/v1/auth/device-codes.
+// deviceCodeResponse is the response from POST /api/v1/auth/device_codes.
 type deviceCodeResponse struct {
-	Code            string `json:"code"`
 	DeviceCode      string `json:"device_code"`
 	VerificationURL string `json:"verification_url"`
-	ExpiresAt       string `json:"expires_at"`
+	UserCode        string `json:"user_code"`
+	ExpiresIn       int    `json:"expires_in"`
 	Interval        int    `json:"interval"`
 }
 
-// deviceTokenRequest is the request body for POST /api/v1/auth/device-tokens.
+// deviceTokenRequest is the request body for POST /api/v1/auth/device_tokens.
 type deviceTokenRequest struct {
 	DeviceCode string `json:"device_code"`
 }
 
-// deviceTokenResponse is the response from POST /api/v1/auth/device-tokens.
+// deviceTokenResponse is the response from POST /api/v1/auth/device_tokens.
 type deviceTokenResponse struct {
-	Status    string `json:"status"`
-	Token     string `json:"token"`
-	UserEmail string `json:"user_email"`
+	AccessToken string `json:"access_token"`
+	UserEmail   string `json:"user_email"`
 }
 
 var loginCmd = &cobra.Command{
@@ -60,13 +59,13 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	// Step 1: Request a device code.
 	var codeResp deviceCodeResponse
-	if err := client.Post("/api/v1/auth/device-codes", nil, &codeResp); err != nil {
+	if err := client.Post("/api/v1/auth/device_codes", nil, &codeResp); err != nil {
 		return fmt.Errorf("requesting device code: %w", err)
 	}
 
 	// Step 2: Display the code and URL to the user.
 	fmt.Fprintf(cmd.OutOrStdout(), "Open this URL: %s\n", codeResp.VerificationURL)
-	fmt.Fprintf(cmd.OutOrStdout(), "Enter code: %s\n", codeResp.Code)
+	fmt.Fprintf(cmd.OutOrStdout(), "Enter code: %s\n", codeResp.UserCode)
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), "Waiting for authorization...")
 
@@ -76,38 +75,29 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		interval = 5 * time.Second
 	}
 
-	expiresAt, err := time.Parse(time.RFC3339, codeResp.ExpiresAt)
-	if err != nil {
-		// If we can't parse the expiry, use a reasonable default.
-		expiresAt = time.Now().Add(15 * time.Minute)
-	}
+	deadline := time.Now().Add(time.Duration(codeResp.ExpiresIn) * time.Second)
 
 	tokenReq := deviceTokenRequest{DeviceCode: codeResp.DeviceCode}
 
 	for {
-		if time.Now().After(expiresAt) {
+		if time.Now().After(deadline) {
 			return fmt.Errorf("device code expired, please run 'podread auth login' again")
 		}
 
 		time.Sleep(interval)
 
 		var tokenResp deviceTokenResponse
-		if err := client.Post("/api/v1/auth/device-tokens", tokenReq, &tokenResp); err != nil {
-			// API errors during polling are not fatal — the server may return
-			// an error status while the code is still pending.
+		if err := client.Post("/api/v1/auth/device_tokens", tokenReq, &tokenResp); err != nil {
 			var apiErr *api.APIError
-			if errors.As(err, &apiErr) {
+			if errors.As(err, &apiErr) && apiErr.StatusCode == 428 {
+				// Authorization pending — keep polling.
 				continue
 			}
 			return fmt.Errorf("polling for token: %w", err)
 		}
 
-		if tokenResp.Status == "pending" {
-			continue
-		}
-
-		if tokenResp.Token != "" {
-			if err := auth.SaveToken(tokenResp.Token); err != nil {
+		if tokenResp.AccessToken != "" {
+			if err := auth.SaveToken(tokenResp.AccessToken); err != nil {
 				return fmt.Errorf("saving token: %w", err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Logged in as %s\n", tokenResp.UserEmail)

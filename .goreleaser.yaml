@@ -43,6 +43,16 @@ release:
   prerelease: auto
   name_template: "v{{.Version}}"
 
+homebrew_casks:
+  - name: podread
+    binaries:
+      - podread
+    homepage: "https://podread.app"
+    description: "CLI for podread.app — text to speech to your personal podcast feed"
+    repository:
+      owner: jesse-spevack
+      name: homebrew-tap
+
 changelog:
   sort: asc
   filters:

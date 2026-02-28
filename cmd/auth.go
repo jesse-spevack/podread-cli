@@ -88,7 +88,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		var tokenResp deviceTokenResponse
 		if err := client.Post("/api/v1/auth/device_tokens", tokenReq, &tokenResp); err != nil {
 			var apiErr *api.APIError
-			if errors.As(err, &apiErr) && apiErr.StatusCode == 428 {
+			if errors.As(err, &apiErr) && apiErr.StatusCode == 400 && apiErr.Message == "authorization_pending" {
 				// Authorization pending — keep polling.
 				continue
 			}

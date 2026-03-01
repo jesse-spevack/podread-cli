@@ -77,6 +77,8 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	deadline := time.Now().Add(time.Duration(codeResp.ExpiresIn) * time.Second)
 
 	tokenReq := deviceTokenRequest{DeviceCode: codeResp.DeviceCode}
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
 
 	for {
 		if time.Now().After(deadline) {
@@ -90,17 +92,26 @@ func runLogin(cmd *cobra.Command, args []string) error {
 			var apiErr *api.APIError
 			if errors.As(err, &apiErr) {
 				if apiErr.StatusCode == 400 && apiErr.Message == "authorization_pending" {
+					consecutiveErrors = 0
 					continue
 				}
 				if apiErr.StatusCode == 429 {
-					// Rate limited — back off and retry.
 					fmt.Fprintln(cmd.ErrOrStderr(), "Rate limited, backing off...")
 					time.Sleep(interval)
+					consecutiveErrors = 0
 					continue
 				}
+				return fmt.Errorf("polling for token: %w", err)
 			}
-			return fmt.Errorf("polling for token: %w", err)
+			// Network/transient error — retry.
+			consecutiveErrors++
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return fmt.Errorf("polling for token after %d consecutive errors: %w", maxConsecutiveErrors, err)
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "Connection error, retrying... (%d/%d)\n", consecutiveErrors, maxConsecutiveErrors)
+			continue
 		}
+		consecutiveErrors = 0
 
 		if tokenResp.AccessToken != "" {
 			if err := auth.SaveToken(tokenResp.AccessToken); err != nil {

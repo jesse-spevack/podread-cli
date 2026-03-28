@@ -1,6 +1,15 @@
 # podread
 
-Command-line interface for [podread.app](https://podread.app) -- turn text into podcast episodes delivered to your personal RSS feed.
+Command-line interface for [podread.app](https://podread.app) — turn articles and text into podcast episodes delivered to your personal RSS feed.
+
+## Quick start
+
+```sh
+brew install jesse-spevack/tap/podread   # or: curl -fsSL https://raw.githubusercontent.com/jesse-spevack/podread-cli/main/install.sh | sh
+podread auth login                       # opens browser for device code auth
+podread feed                             # get your RSS feed URL — subscribe in any podcast app
+podread episode create --url https://example.com/article
+```
 
 ## Install
 
@@ -16,11 +25,18 @@ brew install jesse-spevack/tap/podread
 curl -fsSL https://raw.githubusercontent.com/jesse-spevack/podread-cli/main/install.sh | sh
 ```
 
-### From source
+### Claude Code plugin
 
-```sh
-go install github.com/jspevack/podread-cli@latest
+This repo is also a [Claude Code plugin](https://code.claude.com/docs/en/plugins). Install it so Claude can create podcast episodes for you:
+
 ```
+/plugin > Add marketplace > jesse-spevack/podread-cli
+/plugin install podread@podread-cli
+```
+
+Once installed, just ask Claude:
+
+> "Turn this article into a podcast episode: https://example.com/article"
 
 ## Authentication
 
@@ -34,15 +50,10 @@ podread auth login
 # Logged in as you@example.com
 ```
 
-Check your session:
+Check your session or log out:
 
 ```sh
 podread auth status
-```
-
-Log out:
-
-```sh
 podread auth logout
 ```
 
@@ -50,74 +61,51 @@ Credentials are stored at `~/.config/podread/token`.
 
 ## Usage
 
-### Create an episode from a URL
+### Create an episode
 
 ```sh
+# From a URL
 podread episode create --url https://example.com/article
-```
 
-The command waits for processing by default and prints the result when done.
-
-### Create an episode from text
-
-```sh
+# From inline text
 podread episode create --text "Your text here" --title "My Episode"
-```
 
-Or pipe text from stdin:
-
-```sh
+# From stdin
 cat article.txt | podread episode create --stdin --title "Article"
 ```
 
-### Fire and forget
-
-```sh
-podread episode create --url https://example.com/article --no-wait
-```
+The command waits for processing by default (~1-5 minutes). Use `--no-wait` to return immediately.
 
 ### Choose a voice
 
 ```sh
-podread voices                           # list available voices
+podread voices                                                      # list available voices
 podread episode create --url https://example.com/article --voice alloy
 ```
 
-### List episodes
+### Manage episodes
 
 ```sh
-podread episode list
-podread episode list --limit 25
-```
-
-### Check episode status
-
-```sh
-podread episode status <id>
-```
-
-### Delete an episode
-
-```sh
+podread episode list              # recent episodes (ep is an alias for episode)
+podread episode status <id>       # check processing status
 podread episode delete <id>
 ```
 
-### Get your RSS feed URL
+### Subscribe to your feed
 
 ```sh
 podread feed
 ```
 
-Add this URL to any podcast app to receive your episodes.
+Add this URL to any podcast app. New episodes appear automatically.
 
 ## JSON output
 
-All commands that produce output support a `--json` flag for structured output:
+All commands support `--json` for structured output:
 
 ```sh
 podread episode list --json
 podread episode create --url https://example.com --json
-podread voices --json
 ```
 
 ## Environment variables
@@ -125,25 +113,6 @@ podread voices --json
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PODREAD_API_URL` | Override the API base URL | `https://podread.app` |
-
-## Claude Code plugin
-
-This repo is also a [Claude Code plugin](https://code.claude.com/docs/en/plugins). Install it so Claude can create podcast episodes for you:
-
-```sh
-# Add this repo as a plugin source (one-time)
-/plugin install podread@podread-cli
-```
-
-If Claude Code doesn't find it, add the marketplace first:
-
-```
-/plugin > Add marketplace > jesse-spevack/podread-cli
-```
-
-Once installed, just ask Claude to turn an article into a podcast:
-
-> "Turn this article into a podcast episode: https://example.com/article"
 
 ## Building from source
 

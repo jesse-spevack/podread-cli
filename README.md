@@ -126,6 +126,25 @@ podread voices --json
 |----------|-------------|---------|
 | `PODREAD_API_URL` | Override the API base URL | `https://podread.app` |
 
+## Claude Code plugin
+
+This repo is also a [Claude Code plugin](https://code.claude.com/docs/en/plugins). Install it so Claude can create podcast episodes for you:
+
+```sh
+# Add this repo as a plugin source (one-time)
+/plugin install podread@podread-cli
+```
+
+If Claude Code doesn't find it, add the marketplace first:
+
+```
+/plugin > Add marketplace > jesse-spevack/podread-cli
+```
+
+Once installed, just ask Claude to turn an article into a podcast:
+
+> "Turn this article into a podcast episode: https://example.com/article"
+
 ## Building from source
 
 ```sh

@@ -1,0 +1,9 @@
+{
+  "name": "podread",
+  "description": "Convert articles, URLs, or text to podcast episodes using the podread CLI",
+  "author": {
+    "name": "Jesse Searls",
+    "email": "jesse@pragmaticengineer.com"
+  },
+  "version": "1.0.0"
+}

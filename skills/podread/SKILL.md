@@ -20,10 +20,10 @@ If not installed:
 
 ```bash
 # Homebrew
-brew install searlsco/tap/podread
+brew install jesse-spevack/tap/podread
 
 # Or curl
-curl -fsSL https://raw.githubusercontent.com/searlsco/podread-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jesse-spevack/podread-cli/main/install.sh | sh
 ```
 
 ## Authentication

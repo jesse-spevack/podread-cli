@@ -144,8 +144,24 @@ func runLogout(cmd *cobra.Command, args []string) error {
 
 // authStatusResponse is the response from GET /api/v1/auth/status.
 type authStatusResponse struct {
-	Email string `json:"email"`
-	Tier  string `json:"tier"`
+	Email            string `json:"email"`
+	Tier             string `json:"tier"`
+	CreditsRemaining *int   `json:"credits_remaining"`
+	CharacterLimit   *int   `json:"character_limit"`
+}
+
+func formatAuthStatus(resp authStatusResponse) string {
+	msg := fmt.Sprintf("Logged in as %s", resp.Email)
+	if resp.Tier != "" {
+		msg += fmt.Sprintf(" (%s)", resp.Tier)
+	}
+	if resp.CreditsRemaining != nil {
+		msg += fmt.Sprintf("\nCredits remaining: %d", *resp.CreditsRemaining)
+	}
+	if resp.CharacterLimit != nil {
+		msg += fmt.Sprintf("\nCharacter limit: %d", *resp.CharacterLimit)
+	}
+	return msg
 }
 
 var statusCmd = &cobra.Command{
@@ -174,10 +190,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("checking auth status: %w", err)
 	}
 
-	msg := fmt.Sprintf("Logged in as %s", statusResp.Email)
-	if statusResp.Tier != "" {
-		msg += fmt.Sprintf(" (%s)", statusResp.Tier)
-	}
-	fmt.Fprintln(cmd.OutOrStdout(), msg)
+	fmt.Fprintln(cmd.OutOrStdout(), formatAuthStatus(statusResp))
 	return nil
 }

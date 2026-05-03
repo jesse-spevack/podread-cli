@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/jesse-spevack/podread-cli/main/inst
 Always check auth status first. If not logged in, start the device auth flow:
 
 ```bash
-# Check auth
+# Check auth (prints email, tier, and — for credit-tier accounts — credits remaining + character limit)
 podread auth status
 
 # Login (opens browser for device code confirmation)
@@ -70,6 +70,7 @@ cat article.txt | podread episode create --stdin --title "From File"
 | `--text "..."` | Inline text to convert |
 | `--stdin` | Read text from stdin |
 | `--title "..."` | Episode title |
+| `--author "..."` | Author name (optional) |
 | `--voice <name>` | Voice to use (see `podread voices`) |
 | `--no-wait` | Return immediately without waiting for processing |
 | `--timeout 300` | Custom timeout in seconds (default: 600) |
@@ -83,6 +84,7 @@ By default, `episode create` waits for processing to complete (~1-5 minutes). Us
 # List recent episodes (ep is an alias for episode)
 podread ep list
 podread ep list --limit 20
+podread ep list --limit 100 --page 2   # paginate older episodes (max limit 100)
 podread ep list --json
 
 # Check processing status

@@ -53,7 +53,7 @@ podread auth login
 Check your session or log out:
 
 ```sh
-podread auth status
+podread auth status   # email, tier, and (for credit-tier accounts) credits remaining + character limit
 podread auth logout
 ```
 
@@ -68,7 +68,7 @@ Credentials are stored at `~/.config/podread/token`.
 podread episode create --url https://example.com/article
 
 # From inline text
-podread episode create --text "Your text here" --title "My Episode"
+podread episode create --text "Your text here" --title "My Episode" --author "Jane Doe"
 
 # From stdin
 cat article.txt | podread episode create --stdin --title "Article"
@@ -87,6 +87,7 @@ podread episode create --url https://example.com/article --voice alloy
 
 ```sh
 podread episode list              # recent episodes (ep is an alias for episode)
+podread episode list --page 2     # paginate (combine with --limit, max 100)
 podread episode status <id>       # check processing status
 podread episode delete <id>
 ```

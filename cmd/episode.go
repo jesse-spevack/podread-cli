@@ -36,6 +36,7 @@ func init() {
 
 	// episode list flags
 	episodeListCmd.Flags().Int("limit", 10, "Maximum number of episodes to list")
+	episodeListCmd.Flags().Int("page", 1, "Page of results to return")
 	episodeListCmd.Flags().Bool("json", false, "Output as JSON")
 }
 
@@ -249,8 +250,13 @@ var episodeListCmd = &cobra.Command{
 	RunE:  runEpisodeList,
 }
 
+func episodeListPath(limit, page int) string {
+	return fmt.Sprintf("/api/v1/episodes?limit=%d&page=%d", limit, page)
+}
+
 func runEpisodeList(cmd *cobra.Command, args []string) error {
 	limitFlag, _ := cmd.Flags().GetInt("limit")
+	pageFlag, _ := cmd.Flags().GetInt("page")
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 
 	client, err := authenticatedClient()
@@ -258,7 +264,7 @@ func runEpisodeList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	path := fmt.Sprintf("/api/v1/episodes?limit=%d", limitFlag)
+	path := episodeListPath(limitFlag, pageFlag)
 
 	var listResp episodeListResponse
 	if err := client.Get(path, &listResp); err != nil {

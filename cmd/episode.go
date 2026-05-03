@@ -26,6 +26,7 @@ func init() {
 	episodeCreateCmd.Flags().String("text", "", "Text to convert to audio")
 	episodeCreateCmd.Flags().Bool("stdin", false, "Read text from stdin")
 	episodeCreateCmd.Flags().String("title", "", "Episode title")
+	episodeCreateCmd.Flags().String("author", "", "Episode author")
 	episodeCreateCmd.Flags().String("voice", "", "Voice to use (see 'podread voices')")
 	episodeCreateCmd.Flags().Bool("no-wait", false, "Do not wait for processing to complete")
 	episodeCreateCmd.Flags().Int("timeout", 600, "Maximum seconds to wait for processing")
@@ -48,6 +49,7 @@ type episodeCreateRequest struct {
 	Text       string `json:"text,omitempty"`
 	URL        string `json:"url,omitempty"`
 	Title      string `json:"title,omitempty"`
+	Author     string `json:"author,omitempty"`
 	Voice      string `json:"voice,omitempty"`
 }
 
@@ -102,6 +104,7 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	textFlag, _ := cmd.Flags().GetString("text")
 	stdinFlag, _ := cmd.Flags().GetBool("stdin")
 	titleFlag, _ := cmd.Flags().GetString("title")
+	authorFlag, _ := cmd.Flags().GetString("author")
 	voiceFlag, _ := cmd.Flags().GetString("voice")
 	noWaitFlag, _ := cmd.Flags().GetBool("no-wait")
 	timeoutFlag, _ := cmd.Flags().GetInt("timeout")
@@ -127,8 +130,9 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 
 	// Build the request.
 	reqBody := episodeCreateRequest{
-		Title: titleFlag,
-		Voice: voiceFlag,
+		Title:  titleFlag,
+		Author: authorFlag,
+		Voice:  voiceFlag,
 	}
 
 	if urlFlag != "" {

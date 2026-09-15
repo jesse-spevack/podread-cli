@@ -68,7 +68,7 @@ cat article.txt | podread episode create --stdin --title "From File"
 podread episode create --file report.pdf --title "Q3 Report"
 ```
 
-`--file` takes `.pdf`, `.docx`, `.epub`, `.html`, `.rtf`, `.md`, and `.txt`. PodRead reads the text in the file on the server. Size limits: 20 MB for PDF and EPUB, 10 MB for Word, 5 MB for HTML and RTF, 2 MB for Markdown and text. A scanned PDF with no text layer fails with a clear message. Without `--title`, the title comes from the file name.
+`--file` takes `.pdf`, `.docx`, `.epub`, `.html`, `.rtf`, `.md`, and `.txt`. PodRead reads the text in the file on the server. Size limit: 4 MB, or 2 MB for Markdown and text. A scanned PDF with no text layer fails with a clear message. Without `--title`, the title comes from the file name.
 
 ### Options
 

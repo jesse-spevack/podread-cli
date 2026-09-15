@@ -375,11 +375,11 @@ func authenticatedClient() (*api.Client, error) {
 }
 
 const (
-	// uploadTimeout covers a 20 MB upload on a slow link plus the server reading the document.
-	uploadTimeout = 5 * time.Minute
+	// uploadTimeout covers a 4 MB upload on a slow link plus the server reading the document.
+	uploadTimeout = 2 * time.Minute
 
 	// maxUploadBytes matches the largest file size the server accepts.
-	maxUploadBytes = 20 << 20
+	maxUploadBytes = 4 << 20
 )
 
 func authenticatedClientWithTimeout(timeout time.Duration) (*api.Client, error) {

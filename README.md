@@ -77,7 +77,7 @@ cat article.txt | podread episode create --stdin --title "Article"
 podread episode create --file report.pdf --title "Q3 Report"
 ```
 
-PodRead reads files up to 20 MB for PDF and EPUB, 10 MB for Word, 5 MB for HTML and RTF, and 2 MB for Markdown and text. A scanned PDF with no text layer does not work. Without `--title`, the title comes from the file name.
+PodRead reads files up to 4 MB, or 2 MB for Markdown and text. A scanned PDF with no text layer does not work. Without `--title`, the title comes from the file name.
 
 The command waits for processing by default (~1-5 minutes). Use `--no-wait` to return immediately.
 

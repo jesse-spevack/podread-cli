@@ -124,13 +124,13 @@ func TestEpisodeCreateRequest_FormFields(t *testing.T) {
 
 	got := req.formFields()
 
-	want := map[string]string{"source_type": "file", "title": "Report", "author": "", "voice": "felix"}
+	want := map[string]string{"source_type": "file", "title": "Report", "voice": "felix"}
+	if len(got) != len(want) {
+		t.Errorf("formFields() = %v, want %v", got, want)
+	}
 	for key, value := range want {
 		if got[key] != value {
 			t.Errorf("formFields()[%q] = %q, want %q", key, got[key], value)
 		}
-	}
-	if _, ok := got["text"]; ok {
-		t.Errorf("formFields() sends text for a file upload")
 	}
 }

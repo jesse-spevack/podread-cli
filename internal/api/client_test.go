@@ -276,28 +276,29 @@ func TestClient_PostFile_SendsMultipartForm(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var gotAuth, gotSourceType, gotFilename, gotContent string
+	var parseErr error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
-			t.Errorf("Authorization = %q", got)
+		// The client must send the body again after a 307 redirect.
+		if r.URL.Path == "/old/episodes" {
+			http.Redirect(w, r, "/api/v1/episodes", http.StatusTemporaryRedirect)
+			return
 		}
-		if err := r.ParseMultipartForm(1 << 20); err != nil {
-			t.Fatalf("ParseMultipartForm: %v", err)
+		gotAuth = r.Header.Get("Authorization")
+		if parseErr = r.ParseMultipartForm(1 << 20); parseErr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
-		if got := r.FormValue("source_type"); got != "file" {
-			t.Errorf("source_type = %q, want file", got)
-		}
-		if _, ok := r.MultipartForm.Value["title"]; ok {
-			t.Errorf("empty title was sent")
-		}
+		gotSourceType = r.FormValue("source_type")
 		file, header, err := r.FormFile("file")
 		if err != nil {
-			t.Fatalf("FormFile: %v", err)
+			parseErr = err
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 		defer file.Close()
 		data, _ := io.ReadAll(file)
-		if header.Filename != "report.pdf" || string(data) != "%PDF-1.7 body" {
-			t.Errorf("file = %q with %q", header.Filename, data)
-		}
+		gotFilename, gotContent = header.Filename, string(data)
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(`{"id":"ep_123"}`))
 	}))
@@ -308,12 +309,20 @@ func TestClient_PostFile_SendsMultipartForm(t *testing.T) {
 	var got struct {
 		ID string `json:"id"`
 	}
-	err := c.PostFile("/api/v1/episodes", map[string]string{"source_type": "file", "title": ""}, filePath, &got)
-	if err != nil {
-		t.Fatalf("PostFile: %v", err)
+	if err := c.PostFile("/old/episodes", map[string]string{"source_type": "file"}, filePath, &got); err != nil {
+		t.Fatalf("PostFile: %v (server parse error: %v)", err, parseErr)
 	}
 	if got.ID != "ep_123" {
 		t.Errorf("ID = %q, want ep_123", got.ID)
+	}
+	if gotAuth != "Bearer test-token" {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+	if gotSourceType != "file" {
+		t.Errorf("source_type = %q, want file", gotSourceType)
+	}
+	if gotFilename != "report.pdf" || gotContent != "%PDF-1.7 body" {
+		t.Errorf("file = %q with %q", gotFilename, gotContent)
 	}
 }
 

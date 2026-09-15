@@ -25,7 +25,7 @@ func init() {
 	episodeCreateCmd.Flags().String("url", "", "URL to convert to audio")
 	episodeCreateCmd.Flags().String("text", "", "Text to convert to audio")
 	episodeCreateCmd.Flags().Bool("stdin", false, "Read text from stdin")
-	episodeCreateCmd.Flags().String("file", "", "Document to convert to audio (.pdf, .docx, .epub, .html, .rtf, .md, .txt)")
+	episodeCreateCmd.Flags().String("file", "", "Document to convert to audio, such as a PDF, Word, or EPUB file")
 	episodeCreateCmd.Flags().String("title", "", "Episode title")
 	episodeCreateCmd.Flags().String("author", "", "Episode author")
 	episodeCreateCmd.Flags().String("voice", "", "Voice to use (see 'podread voices')")
@@ -54,14 +54,15 @@ type episodeCreateRequest struct {
 	Voice      string `json:"voice,omitempty"`
 }
 
-// formFields returns the request as multipart form values for a file upload.
+// formFields returns the non-empty request values as multipart form fields for a file upload.
 func (r episodeCreateRequest) formFields() map[string]string {
-	return map[string]string{
-		"source_type": r.SourceType,
-		"title":       r.Title,
-		"author":      r.Author,
-		"voice":       r.Voice,
+	fields := map[string]string{"source_type": r.SourceType}
+	for name, value := range map[string]string{"title": r.Title, "author": r.Author, "voice": r.Voice} {
+		if value != "" {
+			fields[name] = value
+		}
 	}
+	return fields
 }
 
 // episodeResponse is the response from the episodes API.
@@ -105,8 +106,8 @@ var episodeCreateCmd = &cobra.Command{
 Exactly one of --url, --text, --stdin, or --file must be provided.
 
 --file uploads a PDF, Word (.docx), EPUB, HTML, RTF, Markdown, or text file.
-PodRead reads the text in the file. Without --title, the title is the file
-name. A scanned PDF with no text layer does not work.
+PodRead reads the text in the file. Without --title, the title comes from the
+file name. A scanned PDF with no text layer does not work.
 
 By default, the command waits for processing to complete, printing progress
 updates to stderr and the final result to stdout. Use --no-wait to return
@@ -156,8 +157,15 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 
 	if fileFlag != "" {
 		reqBody.SourceType = "file"
-		if _, err := os.Stat(fileFlag); err != nil {
+		info, err := os.Stat(fileFlag)
+		if err != nil {
 			return fmt.Errorf("reading file: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("%s is not a file", fileFlag)
+		}
+		if info.Size() > maxUploadBytes {
+			return fmt.Errorf("%s is larger than %d MB, the largest file PodRead accepts", fileFlag, maxUploadBytes>>20)
 		}
 	} else if urlFlag != "" {
 		reqBody.SourceType = "url"
@@ -179,24 +187,22 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	var client *api.Client
-	var err error
-	if fileFlag != "" {
-		client, err = authenticatedClientWithTimeout(uploadTimeout)
-	} else {
-		client, err = authenticatedClient()
-	}
+	client, err := authenticatedClient()
 	if err != nil {
 		return err
 	}
 
 	var ep episodeResponse
 	if fileFlag != "" {
-		err = client.PostFile("/api/v1/episodes", reqBody.formFields(), fileFlag, &ep)
-	} else {
-		err = client.Post("/api/v1/episodes", reqBody, &ep)
-	}
-	if err != nil {
+		uploadClient, err := authenticatedClientWithTimeout(uploadTimeout)
+		if err != nil {
+			return err
+		}
+		err = uploadClient.PostFile("/api/v1/episodes", reqBody.formFields(), fileFlag, &ep)
+		if err != nil {
+			return fmt.Errorf("creating episode: %w", err)
+		}
+	} else if err := client.Post("/api/v1/episodes", reqBody, &ep); err != nil {
 		return fmt.Errorf("creating episode: %w", err)
 	}
 
@@ -368,8 +374,13 @@ func authenticatedClient() (*api.Client, error) {
 	return authenticatedClientWithTimeout(api.DefaultTimeout)
 }
 
-// uploadTimeout covers a large file upload plus the server reading the document.
-const uploadTimeout = 2 * time.Minute
+const (
+	// uploadTimeout covers a 20 MB upload on a slow link plus the server reading the document.
+	uploadTimeout = 5 * time.Minute
+
+	// maxUploadBytes matches the largest file size the server accepts.
+	maxUploadBytes = 20 << 20
+)
 
 func authenticatedClientWithTimeout(timeout time.Duration) (*api.Client, error) {
 	token, err := auth.LoadToken()

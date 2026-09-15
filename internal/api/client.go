@@ -112,9 +112,6 @@ func (c *Client) PostFile(path string, fields map[string]string, filePath string
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	for name, value := range fields {
-		if value == "" {
-			continue
-		}
 		if err := writer.WriteField(name, value); err != nil {
 			return fmt.Errorf("encoding form field %s: %w", name, err)
 		}
@@ -130,13 +127,10 @@ func (c *Client) PostFile(path string, fields map[string]string, filePath string
 		return fmt.Errorf("encoding multipart body: %w", err)
 	}
 
-	req, err := c.newRequest(http.MethodPost, path, nil)
+	req, err := c.newRequestWithBody(http.MethodPost, path, bytes.NewReader(body.Bytes()), writer.FormDataContentType())
 	if err != nil {
 		return err
 	}
-	req.Body = io.NopCloser(&body)
-	req.ContentLength = int64(body.Len())
-	req.Header.Set("Content-Type", writer.FormDataContentType())
 	return c.do(req, result)
 }
 
@@ -150,18 +144,26 @@ func (c *Client) Delete(path string) error {
 }
 
 func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
-	url := c.baseURL + path
-
-	var bodyReader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("encoding request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(data)
+	if body == nil {
+		return c.newRequestWithBody(method, path, nil, "")
 	}
 
-	req, err := http.NewRequest(method, url, bodyReader)
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("encoding request body: %w", err)
+	}
+	return c.newRequestWithBody(method, path, bytes.NewReader(data), "application/json")
+}
+
+// newRequestWithBody builds a request from a *bytes.Reader, so Go can send the
+// body again when it follows a 307 or 308 redirect.
+func (c *Client) newRequestWithBody(method, path string, body *bytes.Reader, contentType string) (*http.Request, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = body
+	}
+
+	req, err := http.NewRequest(method, c.baseURL+path, bodyReader)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +171,8 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 	req.Header.Set("User-Agent", "podread-cli/"+Version)
 	req.Header.Set("Accept", "application/json")
 
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	if c.token != "" {

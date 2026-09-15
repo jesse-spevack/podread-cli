@@ -1,6 +1,6 @@
 ---
 name: podread
-description: Convert articles, URLs, or text to podcast episodes using the podread CLI. Use when the user asks to create a podcast, convert an article to audio, turn text into a listenable episode, or mentions podread.
+description: Convert articles, URLs, text, or a document file (PDF, Word, EPUB) to podcast episodes using the podread CLI. Use when the user asks to create a podcast, convert an article to audio, turn text into a listenable episode, or mentions podread.
 allowed-tools: [Bash, Read]
 ---
 
@@ -62,6 +62,14 @@ echo "Long text content" | podread episode create --stdin --title "Episode Title
 cat article.txt | podread episode create --stdin --title "From File"
 ```
 
+### From a document file
+
+```bash
+podread episode create --file report.pdf --title "Q3 Report"
+```
+
+`--file` takes `.pdf`, `.docx`, `.epub`, `.html`, `.rtf`, `.md`, and `.txt`. PodRead reads the text in the file on the server. Size limit: 4 MB, or 2 MB for Markdown and text. A scanned PDF with no text layer fails with a clear message. Without `--title`, the title comes from the file name.
+
 ### Options
 
 | Flag | Purpose |
@@ -69,6 +77,7 @@ cat article.txt | podread episode create --stdin --title "From File"
 | `--url <url>` | Source URL to convert |
 | `--text "..."` | Inline text to convert |
 | `--stdin` | Read text from stdin |
+| `--file <path>` | Document to convert (.pdf, .docx, .epub, .html, .rtf, .md, .txt) |
 | `--title "..."` | Episode title |
 | `--author "..."` | Author name (optional) |
 | `--voice <name>` | Voice to use (see `podread voices`) |

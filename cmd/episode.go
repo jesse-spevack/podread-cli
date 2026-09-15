@@ -25,6 +25,7 @@ func init() {
 	episodeCreateCmd.Flags().String("url", "", "URL to convert to audio")
 	episodeCreateCmd.Flags().String("text", "", "Text to convert to audio")
 	episodeCreateCmd.Flags().Bool("stdin", false, "Read text from stdin")
+	episodeCreateCmd.Flags().String("file", "", "Document to convert to audio, such as a PDF, Word, or EPUB file")
 	episodeCreateCmd.Flags().String("title", "", "Episode title")
 	episodeCreateCmd.Flags().String("author", "", "Episode author")
 	episodeCreateCmd.Flags().String("voice", "", "Voice to use (see 'podread voices')")
@@ -51,6 +52,17 @@ type episodeCreateRequest struct {
 	Title      string `json:"title,omitempty"`
 	Author     string `json:"author,omitempty"`
 	Voice      string `json:"voice,omitempty"`
+}
+
+// formFields returns the non-empty request values as multipart form fields for a file upload.
+func (r episodeCreateRequest) formFields() map[string]string {
+	fields := map[string]string{"source_type": r.SourceType}
+	for name, value := range map[string]string{"title": r.Title, "author": r.Author, "voice": r.Voice} {
+		if value != "" {
+			fields[name] = value
+		}
+	}
+	return fields
 }
 
 // episodeResponse is the response from the episodes API.
@@ -88,10 +100,14 @@ var episodeCmd = &cobra.Command{
 
 var episodeCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new episode from text or a URL",
-	Long: `Create a new podcast episode by providing text or a URL.
+	Short: "Create a new episode from text, a URL, or a file",
+	Long: `Create a new podcast episode by providing text, a URL, or a document file.
 
-Exactly one of --url, --text, or --stdin must be provided.
+Exactly one of --url, --text, --stdin, or --file must be provided.
+
+--file uploads a PDF, Word (.docx), EPUB, HTML, RTF, Markdown, or text file.
+PodRead reads the text in the file. Without --title, the title comes from the
+file name. A scanned PDF with no text layer does not work.
 
 By default, the command waits for processing to complete, printing progress
 updates to stderr and the final result to stdout. Use --no-wait to return
@@ -103,6 +119,7 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	urlFlag, _ := cmd.Flags().GetString("url")
 	textFlag, _ := cmd.Flags().GetString("text")
 	stdinFlag, _ := cmd.Flags().GetBool("stdin")
+	fileFlag, _ := cmd.Flags().GetString("file")
 	titleFlag, _ := cmd.Flags().GetString("title")
 	authorFlag, _ := cmd.Flags().GetString("author")
 	voiceFlag, _ := cmd.Flags().GetString("voice")
@@ -124,8 +141,11 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	if stdinFlag {
 		sourceCount++
 	}
+	if fileFlag != "" {
+		sourceCount++
+	}
 	if sourceCount != 1 {
-		return fmt.Errorf("exactly one of --url, --text, or --stdin must be provided")
+		return fmt.Errorf("exactly one of --url, --text, --stdin, or --file must be provided")
 	}
 
 	// Build the request.
@@ -135,7 +155,19 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 		Voice:  voiceFlag,
 	}
 
-	if urlFlag != "" {
+	if fileFlag != "" {
+		reqBody.SourceType = "file"
+		info, err := os.Stat(fileFlag)
+		if err != nil {
+			return fmt.Errorf("reading file: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("%s is not a file", fileFlag)
+		}
+		if info.Size() > maxUploadBytes {
+			return fmt.Errorf("%s is larger than %d MB, the largest file PodRead accepts", fileFlag, maxUploadBytes>>20)
+		}
+	} else if urlFlag != "" {
 		reqBody.SourceType = "url"
 		reqBody.URL = urlFlag
 	} else {
@@ -161,7 +193,16 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	var ep episodeResponse
-	if err := client.Post("/api/v1/episodes", reqBody, &ep); err != nil {
+	if fileFlag != "" {
+		uploadClient, err := authenticatedClientWithTimeout(uploadTimeout)
+		if err != nil {
+			return err
+		}
+		err = uploadClient.PostFile("/api/v1/episodes", reqBody.formFields(), fileFlag, &ep)
+		if err != nil {
+			return fmt.Errorf("creating episode: %w", err)
+		}
+	} else if err := client.Post("/api/v1/episodes", reqBody, &ep); err != nil {
 		return fmt.Errorf("creating episode: %w", err)
 	}
 
@@ -330,6 +371,18 @@ func runEpisodeDelete(cmd *cobra.Command, args []string) error {
 // authenticatedClient loads the stored token and returns an API client.
 // It prints a helpful message and exits if not logged in.
 func authenticatedClient() (*api.Client, error) {
+	return authenticatedClientWithTimeout(api.DefaultTimeout)
+}
+
+const (
+	// uploadTimeout covers a 4 MB upload on a slow link plus the server reading the document.
+	uploadTimeout = 2 * time.Minute
+
+	// maxUploadBytes matches the largest file size the server accepts.
+	maxUploadBytes = 4 << 20
+)
+
+func authenticatedClientWithTimeout(timeout time.Duration) (*api.Client, error) {
 	token, err := auth.LoadToken()
 	if err != nil {
 		if errors.Is(err, auth.ErrNoToken) {
@@ -337,7 +390,7 @@ func authenticatedClient() (*api.Client, error) {
 		}
 		return nil, fmt.Errorf("reading token: %w", err)
 	}
-	return api.NewClient(token), nil
+	return api.NewClientWithTimeout(token, timeout), nil
 }
 
 // printEpisode outputs an episode in human-friendly or JSON format.

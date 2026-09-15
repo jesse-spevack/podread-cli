@@ -118,3 +118,19 @@ func TestEpisodeCreateRequest_JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestEpisodeCreateRequest_FormFields(t *testing.T) {
+	req := episodeCreateRequest{SourceType: "file", Title: "Report", Voice: "felix"}
+
+	got := req.formFields()
+
+	want := map[string]string{"source_type": "file", "title": "Report", "voice": "felix"}
+	if len(got) != len(want) {
+		t.Errorf("formFields() = %v, want %v", got, want)
+	}
+	for key, value := range want {
+		if got[key] != value {
+			t.Errorf("formFields()[%q] = %q, want %q", key, got[key], value)
+		}
+	}
+}

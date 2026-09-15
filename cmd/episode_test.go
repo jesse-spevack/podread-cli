@@ -118,3 +118,19 @@ func TestEpisodeCreateRequest_JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestEpisodeCreateRequest_FormFields(t *testing.T) {
+	req := episodeCreateRequest{SourceType: "file", Title: "Report", Voice: "felix"}
+
+	got := req.formFields()
+
+	want := map[string]string{"source_type": "file", "title": "Report", "author": "", "voice": "felix"}
+	for key, value := range want {
+		if got[key] != value {
+			t.Errorf("formFields()[%q] = %q, want %q", key, got[key], value)
+		}
+	}
+	if _, ok := got["text"]; ok {
+		t.Errorf("formFields() sends text for a file upload")
+	}
+}

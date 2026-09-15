@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,9 +35,9 @@ func TestPathEscape(t *testing.T) {
 
 func TestAPIError_Error(t *testing.T) {
 	tests := []struct {
-		name   string
-		err    APIError
-		want   string
+		name string
+		err  APIError
+		want string
 	}{
 		{
 			name: "with message",
@@ -264,5 +266,62 @@ func TestClient_Post_SendsJSON(t *testing.T) {
 	}
 	if result.ID != "ep-123" {
 		t.Errorf("response ID = %q, want %q", result.ID, "ep-123")
+	}
+}
+
+func TestClient_PostFile_SendsMultipartForm(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "report.pdf")
+	if err := os.WriteFile(filePath, []byte("%PDF-1.7 body"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Errorf("Authorization = %q", got)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("ParseMultipartForm: %v", err)
+		}
+		if got := r.FormValue("source_type"); got != "file" {
+			t.Errorf("source_type = %q, want file", got)
+		}
+		if _, ok := r.MultipartForm.Value["title"]; ok {
+			t.Errorf("empty title was sent")
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			t.Fatalf("FormFile: %v", err)
+		}
+		defer file.Close()
+		data, _ := io.ReadAll(file)
+		if header.Filename != "report.pdf" || string(data) != "%PDF-1.7 body" {
+			t.Errorf("file = %q with %q", header.Filename, data)
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id":"ep_123"}`))
+	}))
+	defer server.Close()
+
+	c := &Client{baseURL: server.URL, token: "test-token", httpClient: &http.Client{}}
+
+	var got struct {
+		ID string `json:"id"`
+	}
+	err := c.PostFile("/api/v1/episodes", map[string]string{"source_type": "file", "title": ""}, filePath, &got)
+	if err != nil {
+		t.Fatalf("PostFile: %v", err)
+	}
+	if got.ID != "ep_123" {
+		t.Errorf("ID = %q, want ep_123", got.ID)
+	}
+}
+
+func TestClient_PostFile_MissingFile(t *testing.T) {
+	c := &Client{baseURL: "http://127.0.0.1:0", httpClient: &http.Client{}}
+
+	err := c.PostFile("/api/v1/episodes", nil, filepath.Join(t.TempDir(), "missing.pdf"), nil)
+	if err == nil || !strings.Contains(err.Error(), "opening file") {
+		t.Errorf("err = %v, want opening file error", err)
 	}
 }

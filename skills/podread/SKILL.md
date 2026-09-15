@@ -62,6 +62,14 @@ echo "Long text content" | podread episode create --stdin --title "Episode Title
 cat article.txt | podread episode create --stdin --title "From File"
 ```
 
+### From a document file
+
+```bash
+podread episode create --file report.pdf --title "Q3 Report"
+```
+
+`--file` takes `.pdf`, `.docx`, `.epub`, `.html`, `.rtf`, `.md`, and `.txt`. PodRead reads the text in the file on the server. A scanned PDF with no text layer fails with a clear message. Without `--title`, the title is the file name.
+
 ### Options
 
 | Flag | Purpose |
@@ -69,6 +77,7 @@ cat article.txt | podread episode create --stdin --title "From File"
 | `--url <url>` | Source URL to convert |
 | `--text "..."` | Inline text to convert |
 | `--stdin` | Read text from stdin |
+| `--file <path>` | Document to convert (.pdf, .docx, .epub, .html, .rtf, .md, .txt) |
 | `--title "..."` | Episode title |
 | `--author "..."` | Author name (optional) |
 | `--voice <name>` | Voice to use (see `podread voices`) |

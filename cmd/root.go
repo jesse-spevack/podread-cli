@@ -10,8 +10,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "podread",
-	Short:   "CLI for podread.app — text to speech to your personal podcast feed",
+	Use:   "podread",
+	Short: "CLI for podread.app — text to speech to your personal podcast feed",
 	Long: `podread is a command-line interface for podread.app.
 Turn text into podcast episodes delivered to your personal RSS feed.`,
 	Version: api.Version,

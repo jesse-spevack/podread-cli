@@ -34,8 +34,8 @@ func TestValidateBaseURL_HTTPS(t *testing.T) {
 
 func TestValidateBaseURL_Localhost(t *testing.T) {
 	tests := []struct {
-		url  string
-		ok   bool
+		url string
+		ok  bool
 	}{
 		{"http://localhost:3000", true},
 		{"http://127.0.0.1:3000", true},

@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jspevack/podread-cli/internal/config"
@@ -93,6 +96,47 @@ func (c *Client) Post(path string, body interface{}, result interface{}) error {
 	if err != nil {
 		return err
 	}
+	return c.do(req, result)
+}
+
+// PostFile performs an authenticated multipart POST request. It sends each
+// field as a form value and the file at filePath as the "file" part, then
+// decodes the JSON response.
+func (c *Client) PostFile(path string, fields map[string]string, filePath string, result interface{}) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("opening file: %w", err)
+	}
+	defer file.Close()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for name, value := range fields {
+		if value == "" {
+			continue
+		}
+		if err := writer.WriteField(name, value); err != nil {
+			return fmt.Errorf("encoding form field %s: %w", name, err)
+		}
+	}
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return fmt.Errorf("encoding file part: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return fmt.Errorf("reading file: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("encoding multipart body: %w", err)
+	}
+
+	req, err := c.newRequest(http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+	req.Body = io.NopCloser(&body)
+	req.ContentLength = int64(body.Len())
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	return c.do(req, result)
 }
 

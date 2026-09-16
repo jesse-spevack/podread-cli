@@ -48,6 +48,9 @@ brews:
     repository:
       owner: jesse-spevack
       name: homebrew-tap
+      git:
+        url: "git@github.com:jesse-spevack/homebrew-tap.git"
+        private_key: "{{ .Env.TAP_DEPLOY_KEY }}"
     homepage: "https://podread.app"
     description: "CLI for podread.app — text to speech to your personal podcast feed"
     install: |

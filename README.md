@@ -130,3 +130,18 @@ make build-all    # cross-compile for all platforms
 ```
 
 Binaries are written to `dist/`.
+
+## Releasing
+
+Push a `v*` tag. The `Release` workflow runs the tests, then runs GoReleaser.
+GoReleaser builds the darwin and linux binaries, creates the GitHub release, and
+updates the `podread.rb` formula in `jesse-spevack/homebrew-tap`.
+
+```
+git tag v0.1.7
+git push origin v0.1.7
+```
+
+The tap push uses a deploy key. The `TAP_DEPLOY_KEY` secret holds the private key.
+The public key is a write deploy key on the tap repository. 1Password stores both
+in the `keys` vault.

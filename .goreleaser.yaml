@@ -41,6 +41,7 @@ release:
     name: podread-cli
   draft: false
   prerelease: auto
+  replace_existing_artifacts: true
   name_template: "v{{.Version}}"
 
 brews:

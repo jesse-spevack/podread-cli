@@ -19,6 +19,12 @@ podread episode create --url https://example.com/article
 brew install jesse-spevack/tap/podread
 ```
 
+The tap ships a cask. If you installed the old formula, upgrade like this:
+
+```sh
+brew uninstall podread && brew install --cask jesse-spevack/tap/podread
+```
+
 ### Shell script
 
 ```sh
@@ -135,7 +141,7 @@ Binaries are written to `dist/`.
 
 Push a `v*` tag. The `Release` workflow runs the tests, then runs GoReleaser.
 GoReleaser builds the darwin and linux binaries, creates the GitHub release, and
-updates the `podread.rb` formula in `jesse-spevack/homebrew-tap`.
+updates the `Casks/podread.rb` cask in `jesse-spevack/homebrew-tap`.
 
 ```
 git tag v0.1.7

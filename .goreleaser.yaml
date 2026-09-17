@@ -44,18 +44,24 @@ release:
   replace_existing_artifacts: true
   name_template: "v{{.Version}}"
 
-brews:
+homebrew_casks:
   - name: podread
+    binaries:
+      - podread
     repository:
       owner: jesse-spevack
       name: homebrew-tap
       git:
         url: "git@github.com:jesse-spevack/homebrew-tap.git"
         private_key: "{{ .Env.TAP_DEPLOY_KEY }}"
-    homepage: "https://podread.app"
-    description: "CLI for podread.app — text to speech to your personal podcast feed"
-    install: |
-      bin.install "podread"
+    homepage: "https://podread.app/"
+    description: "CLI for podread.app - text to speech to your personal podcast feed"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/podread"]
+          end
 
 changelog:
   sort: asc

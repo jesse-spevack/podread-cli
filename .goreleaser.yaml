@@ -56,12 +56,15 @@ homebrew_casks:
         private_key: "{{ .Env.TAP_DEPLOY_KEY }}"
     homepage: "https://podread.app/"
     description: "CLI for podread.app - text to speech to your personal podcast feed"
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/podread"]
-          end
+    # The binary has no Apple signature, so the cask removes the quarantine flag.
+    # Homebrew deprecated `postflight`, which is all that `hooks.post.install` writes.
+    # Move this to `hooks.post.install_steps` when GoReleaser v2.19 ships it.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/podread"]
+        end
+      end
 
 changelog:
   sort: asc

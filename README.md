@@ -137,6 +137,21 @@ make build-all    # cross-compile for all platforms
 
 Binaries are written to `dist/`.
 
+## Development
+
+Run the tests with `go test ./...`.
+
+One test checks the CLI against the API. `TestAPIContract` in `cmd/contract_test.go`
+downloads the OpenAPI spec from `https://podread.app/api/v1/openapi.json`. It fails
+when the CLI sends or reads a field the spec does not document. The test needs the
+network, and it fails when the download fails.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PODREAD_OPENAPI_URL` | Override the spec URL, such as a local server | `https://podread.app/api/v1/openapi.json` |
+
+Run `go test -short ./...` to skip the contract check when you work offline.
+
 ## Releasing
 
 Push a `v*` tag. The `Release` workflow runs the tests, then runs GoReleaser.

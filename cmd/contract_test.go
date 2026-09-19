@@ -2,8 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,10 +17,72 @@ import (
 const (
 	defaultOpenAPIURL = "https://podread.app/api/v1/openapi.json"
 	specTimeout       = 15 * time.Second
+	fetchHint         = "run `go test -short ./...` to skip the contract check, or set PODREAD_OPENAPI_URL to another spec"
 )
 
-// TestAPIContract compares every json tag the CLI sends or reads against the
-// published OpenAPI spec. Run `go test -short` to skip it when offline.
+type contractCase struct {
+	name  string
+	value any
+	path  []string
+}
+
+// contractCases reaches every schema through the operation that serves it, so a
+// spec that repoints an operation at a thinner schema fails the check.
+var contractCases = []contractCase{
+	{
+		"createEpisode request",
+		episodeCreateRequest{},
+		[]string{"paths", "/api/v1/episodes", "post", "requestBody", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"getEpisode response",
+		episodeShowResponse{},
+		[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"getEpisode episode",
+		episodeResponse{},
+		[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties", "episode", "properties"},
+	},
+	{
+		"listEpisodes response",
+		episodeListResponse{},
+		[]string{"paths", "/api/v1/episodes", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"listEpisodes episode",
+		episodeResponse{},
+		[]string{"paths", "/api/v1/episodes", "get", "responses", "200", "content", "application/json", "schema", "properties", "episodes", "items", "properties"},
+	},
+	{
+		"listVoices response",
+		voicesListResponse{},
+		[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"voice",
+		voiceResponse{},
+		[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties", "voices", "items", "properties"},
+	},
+	{
+		"getFeed response",
+		feedResponse{},
+		[]string{"paths", "/api/v1/feed", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"getAuthStatus response",
+		authStatusResponse{},
+		[]string{"paths", "/api/v1/auth/status", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+}
+
+// notInSpec names the structs the contract check cannot cover, and why.
+var notInSpec = map[string]string{
+	"deviceCodeResponse":  "the spec documents no POST /api/v1/auth/device_codes",
+	"deviceTokenRequest":  "the spec documents no POST /api/v1/auth/device_tokens",
+	"deviceTokenResponse": "the spec documents no POST /api/v1/auth/device_tokens",
+}
+
 func TestAPIContract(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the contract check needs the live OpenAPI spec")
@@ -24,54 +90,7 @@ func TestAPIContract(t *testing.T) {
 
 	spec := fetchSpec(t)
 
-	tests := []struct {
-		name  string
-		value any
-		path  []string
-	}{
-		{
-			"episode",
-			episodeResponse{},
-			[]string{"components", "schemas", "Episode", "properties"},
-		},
-		{
-			"createEpisode request",
-			episodeCreateRequest{},
-			[]string{"paths", "/api/v1/episodes", "post", "requestBody", "content", "application/json", "schema", "properties"},
-		},
-		{
-			"getEpisode response",
-			episodeShowResponse{},
-			[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties"},
-		},
-		{
-			"listEpisodes response",
-			episodeListResponse{},
-			[]string{"paths", "/api/v1/episodes", "get", "responses", "200", "content", "application/json", "schema", "properties"},
-		},
-		{
-			"listVoices response",
-			voicesListResponse{},
-			[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties"},
-		},
-		{
-			"voice",
-			voiceResponse{},
-			[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties", "voices", "items", "properties"},
-		},
-		{
-			"getFeed response",
-			feedResponse{},
-			[]string{"paths", "/api/v1/feed", "get", "responses", "200", "content", "application/json", "schema", "properties"},
-		},
-		{
-			"getAuthStatus response",
-			authStatusResponse{},
-			[]string{"paths", "/api/v1/auth/status", "get", "responses", "200", "content", "application/json", "schema", "properties"},
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range contractCases {
 		t.Run(tt.name, func(t *testing.T) {
 			properties := resolve(t, spec, tt.path)
 
@@ -82,6 +101,62 @@ func TestAPIContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestContractCoversEveryStruct(t *testing.T) {
+	covered := make(map[string]bool, len(contractCases))
+	for _, tt := range contractCases {
+		covered[reflect.TypeOf(tt.value).Name()] = true
+	}
+
+	for _, name := range structsWithJSONTags(t) {
+		if covered[name] || notInSpec[name] != "" {
+			continue
+		}
+		t.Errorf("%s carries json tags but no contract case, add one to contractCases or list it in notInSpec with a reason", name)
+	}
+}
+
+func structsWithJSONTags(t *testing.T) []string {
+	t.Helper()
+
+	paths, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("listing the cmd package: %v", err)
+	}
+
+	fset := token.NewFileSet()
+	var names []string
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", path, err)
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			spec, ok := node.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			structType, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return true
+			}
+			for _, field := range structType.Fields.List {
+				if field.Tag != nil && strings.Contains(field.Tag.Value, `json:"`) {
+					names = append(names, spec.Name.Name)
+					return false
+				}
+			}
+			return true
+		})
+	}
+
+	return names
 }
 
 func fetchSpec(t *testing.T) map[string]any {
@@ -95,17 +170,17 @@ func fetchSpec(t *testing.T) map[string]any {
 	client := &http.Client{Timeout: specTimeout}
 	resp, err := client.Get(url)
 	if err != nil {
-		t.Fatalf("fetching the spec from %s: %v", url, err)
+		t.Fatalf("fetching the spec from %s: %v\n%s", url, err, fetchHint)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("fetching the spec from %s: status %d, want 200", url, resp.StatusCode)
+		t.Fatalf("fetching the spec from %s: status %d, want 200\n%s", url, resp.StatusCode, fetchHint)
 	}
 
 	var spec map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&spec); err != nil {
-		t.Fatalf("decoding the spec from %s: %v", url, err)
+		t.Fatalf("decoding the spec from %s: %v\n%s", url, err, fetchHint)
 	}
 
 	return spec
@@ -116,9 +191,17 @@ func jsonTags(value any) []string {
 
 	var tags []string
 	for i := range structType.NumField() {
-		name, _, _ := strings.Cut(structType.Field(i).Tag.Get("json"), ",")
-		if name == "" || name == "-" {
+		field := structType.Field(i)
+		if !field.IsExported() {
 			continue
+		}
+
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = field.Name
 		}
 		tags = append(tags, name)
 	}

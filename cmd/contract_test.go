@@ -26,8 +26,7 @@ type contractCase struct {
 	path  []string
 }
 
-// contractCases reaches every schema through the operation that serves it, so a
-// spec that repoints an operation at a thinner schema fails the check.
+// Each path goes through an operation, so a spec that repoints one at a thinner schema fails.
 var contractCases = []contractCase{
 	{
 		"createEpisode request",

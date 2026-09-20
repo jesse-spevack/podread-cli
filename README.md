@@ -137,6 +137,29 @@ make build-all    # cross-compile for all platforms
 
 Binaries are written to `dist/`.
 
+## Development
+
+Run the tests with `go test -count=1 ./...`.
+
+One test checks the CLI against the API. `TestAPIContract` in `cmd/contract_test.go`
+downloads the OpenAPI spec from `https://podread.app/api/v1/openapi.json`. It fails
+when the CLI sends or reads a field the spec does not document. The test needs the
+network, and it fails when the download fails.
+
+Use `-count=1` for that test. Go caches a test result and reuses it while the files
+do not change, so a plain `go test` prints `(cached)` and never downloads the spec
+again. Both workflows pass `-count=1`, and CI also runs every Monday, so a spec
+change on the server shows up without a new CLI pull request.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PODREAD_OPENAPI_URL` | Override the spec URL, such as a local server | `https://podread.app/api/v1/openapi.json` |
+
+Run `go test -short ./...` to skip the contract check when you work offline.
+
+`TestContractCoversEveryStruct` needs no network. It parses `cmd/*.go` and fails when
+a struct with `json` tags has no contract case and no entry in `notInSpec`.
+
 ## Releasing
 
 Push a `v*` tag. The `Release` workflow runs the tests, then runs GoReleaser.

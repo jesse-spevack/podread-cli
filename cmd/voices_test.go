@@ -2,24 +2,18 @@ package cmd
 
 import "testing"
 
-func TestVoices_ReadsBothShapes(t *testing.T) {
+func TestVoices_ReadsListObject(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
 		want string
 	}{
 		{
-			"keyed",
-			`{"voices":[{"id":"alloy","name":"Alloy","accent":"US","gender":"female"}]}`,
-			"ID           NAME        ACCENT      GENDER\nalloy        Alloy       US          female\n",
-		},
-		{
-			"list object",
+			"one voice",
 			`{"object":"list","data":[{"object":"voice","id":"alloy","name":"Alloy","accent":"US","gender":"female"}],"has_more":false}`,
 			"ID           NAME        ACCENT      GENDER\nalloy        Alloy       US          female\n",
 		},
-		{"keyed empty", `{"voices":[]}`, "No voices available\n"},
-		{"list object empty", `{"object":"list","data":[],"has_more":false}`, "No voices available\n"},
+		{"empty", `{"object":"list","data":[],"has_more":false}`, "No voices available\n"},
 	}
 
 	for _, tt := range tests {

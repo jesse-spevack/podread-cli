@@ -93,25 +93,29 @@ func TestClient_Do_APIError(t *testing.T) {
 	tests := []struct {
 		name        string
 		body        string
-		wantMessage string
+		wantType    string
 		wantCode    string
+		wantMessage string
+		wantParam   string
 	}{
 		{
-			name:        "string error",
-			body:        `{"error":"episode not found"}`,
-			wantMessage: "episode not found",
-		},
-		{
-			name:        "object error",
-			body:        `{"error":{"type":"invalid_request_error","code":"not_found","message":"No episode with that id.","param":"id"}}`,
+			name:        "error object",
+			body:        `{"error":{"type":"invalid_request_error","code":"resource_missing","message":"No episode with that id.","param":"id"}}`,
+			wantType:    "invalid_request_error",
+			wantCode:    "resource_missing",
 			wantMessage: "No episode with that id.",
-			wantCode:    "not_found",
+			wantParam:   "id",
 		},
 		{
-			name:        "object error with extra data",
-			body:        `{"error":{"type":"payment_error","code":"no_credits","message":"Buy credits.","credits_remaining":0,"upgrade_url":"https://podread.app/upgrade"}}`,
+			name:        "error object with extra data",
+			body:        `{"error":{"type":"payment_error","code":"insufficient_credits","message":"Buy credits.","credits_remaining":0,"upgrade_url":"https://podread.app/upgrade"}}`,
+			wantType:    "payment_error",
+			wantCode:    "insufficient_credits",
 			wantMessage: "Buy credits.",
-			wantCode:    "no_credits",
+		},
+		{
+			name: "string error",
+			body: `{"error":"episode not found"}`,
 		},
 		{
 			name: "no body",
@@ -150,11 +154,17 @@ func TestClient_Do_APIError(t *testing.T) {
 			if apiErr.StatusCode != 404 {
 				t.Errorf("StatusCode = %d, want 404", apiErr.StatusCode)
 			}
-			if apiErr.Message != tt.wantMessage {
-				t.Errorf("Message = %q, want %q", apiErr.Message, tt.wantMessage)
+			if apiErr.Type != tt.wantType {
+				t.Errorf("Type = %q, want %q", apiErr.Type, tt.wantType)
 			}
 			if apiErr.Code != tt.wantCode {
 				t.Errorf("Code = %q, want %q", apiErr.Code, tt.wantCode)
+			}
+			if apiErr.Message != tt.wantMessage {
+				t.Errorf("Message = %q, want %q", apiErr.Message, tt.wantMessage)
+			}
+			if apiErr.Param != tt.wantParam {
+				t.Errorf("Param = %q, want %q", apiErr.Param, tt.wantParam)
 			}
 		})
 	}
@@ -167,7 +177,7 @@ func TestAPIError_HasCode(t *testing.T) {
 		want bool
 	}{
 		{"code field", APIError{StatusCode: 400, Code: "authorization_pending", Message: "The user has not approved the code."}, true},
-		{"code as the message", APIError{StatusCode: 400, Message: "authorization_pending"}, true},
+		{"code as the message only", APIError{StatusCode: 400, Message: "authorization_pending"}, false},
 		{"other code", APIError{StatusCode: 400, Code: "expired_token", Message: "authorization_pending was earlier"}, false},
 		{"empty", APIError{StatusCode: 400}, false},
 	}

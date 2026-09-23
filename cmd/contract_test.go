@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jspevack/podread-cli/internal/api"
 )
 
 const (
@@ -34,14 +36,14 @@ var contractCases = []contractCase{
 		[]string{"paths", "/api/v1/episodes", "post", "requestBody", "content", "application/json", "schema", "properties"},
 	},
 	{
-		"getEpisode response",
-		episodeShowResponse{},
-		[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+		"createEpisode response",
+		episodeResponse{},
+		[]string{"paths", "/api/v1/episodes", "post", "responses", "201", "content", "application/json", "schema", "properties"},
 	},
 	{
-		"getEpisode episode",
+		"getEpisode response",
 		episodeResponse{},
-		[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties", "episode", "properties"},
+		[]string{"paths", "/api/v1/episodes/{id}", "get", "responses", "200", "content", "application/json", "schema", "properties"},
 	},
 	{
 		"listEpisodes response",
@@ -51,7 +53,7 @@ var contractCases = []contractCase{
 	{
 		"listEpisodes episode",
 		episodeResponse{},
-		[]string{"paths", "/api/v1/episodes", "get", "responses", "200", "content", "application/json", "schema", "properties", "episodes", "items", "properties"},
+		[]string{"paths", "/api/v1/episodes", "get", "responses", "200", "content", "application/json", "schema", "properties", "data", "items", "properties"},
 	},
 	{
 		"listVoices response",
@@ -61,7 +63,7 @@ var contractCases = []contractCase{
 	{
 		"voice",
 		voiceResponse{},
-		[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties", "voices", "items", "properties"},
+		[]string{"paths", "/api/v1/voices", "get", "responses", "200", "content", "application/json", "schema", "properties", "data", "items", "properties"},
 	},
 	{
 		"getFeed response",
@@ -72,6 +74,11 @@ var contractCases = []contractCase{
 		"getAuthStatus response",
 		authStatusResponse{},
 		[]string{"paths", "/api/v1/auth/status", "get", "responses", "200", "content", "application/json", "schema", "properties"},
+	},
+	{
+		"error",
+		api.ErrorDetail{},
+		[]string{"paths", "/api/v1/episodes", "post", "responses", "422", "content", "application/json", "schema", "properties", "error", "properties"},
 	},
 }
 

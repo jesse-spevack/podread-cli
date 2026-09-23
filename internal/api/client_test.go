@@ -90,33 +90,94 @@ func TestClient_Do_ParsesJSON(t *testing.T) {
 }
 
 func TestClient_Do_APIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "episode not found"})
-	}))
-	defer server.Close()
-
-	c := &Client{
-		baseURL:    server.URL,
-		token:      "test-token",
-		httpClient: &http.Client{},
+	tests := []struct {
+		name        string
+		body        string
+		wantMessage string
+		wantCode    string
+	}{
+		{
+			name:        "string error",
+			body:        `{"error":"episode not found"}`,
+			wantMessage: "episode not found",
+		},
+		{
+			name:        "object error",
+			body:        `{"error":{"type":"invalid_request_error","code":"not_found","message":"No episode with that id.","param":"id"}}`,
+			wantMessage: "No episode with that id.",
+			wantCode:    "not_found",
+		},
+		{
+			name:        "object error with extra data",
+			body:        `{"error":{"type":"payment_error","code":"no_credits","message":"Buy credits.","credits_remaining":0,"upgrade_url":"https://podread.app/upgrade"}}`,
+			wantMessage: "Buy credits.",
+			wantCode:    "no_credits",
+		},
+		{
+			name: "no body",
+			body: "",
+		},
+		{
+			name: "html body",
+			body: "<html>not found</html>",
+		},
 	}
 
-	var result map[string]interface{}
-	err := c.Get("/episodes/missing", &result)
-	if err == nil {
-		t.Fatal("expected error for 404 response")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				io.WriteString(w, tt.body)
+			}))
+			defer server.Close()
+
+			c := &Client{
+				baseURL:    server.URL,
+				token:      "test-token",
+				httpClient: &http.Client{},
+			}
+
+			var result map[string]interface{}
+			err := c.Get("/episodes/missing", &result)
+			if err == nil {
+				t.Fatal("expected error for 404 response")
+			}
+
+			apiErr, ok := err.(*APIError)
+			if !ok {
+				t.Fatalf("expected *APIError, got %T", err)
+			}
+			if apiErr.StatusCode != 404 {
+				t.Errorf("StatusCode = %d, want 404", apiErr.StatusCode)
+			}
+			if apiErr.Message != tt.wantMessage {
+				t.Errorf("Message = %q, want %q", apiErr.Message, tt.wantMessage)
+			}
+			if apiErr.Code != tt.wantCode {
+				t.Errorf("Code = %q, want %q", apiErr.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestAPIError_HasCode(t *testing.T) {
+	tests := []struct {
+		name string
+		err  APIError
+		want bool
+	}{
+		{"code field", APIError{StatusCode: 400, Code: "authorization_pending", Message: "The user has not approved the code."}, true},
+		{"code as the message", APIError{StatusCode: 400, Message: "authorization_pending"}, true},
+		{"other code", APIError{StatusCode: 400, Code: "expired_token", Message: "authorization_pending was earlier"}, false},
+		{"empty", APIError{StatusCode: 400}, false},
 	}
 
-	apiErr, ok := err.(*APIError)
-	if !ok {
-		t.Fatalf("expected *APIError, got %T", err)
-	}
-	if apiErr.StatusCode != 404 {
-		t.Errorf("StatusCode = %d, want 404", apiErr.StatusCode)
-	}
-	if apiErr.Message != "episode not found" {
-		t.Errorf("Message = %q, want %q", apiErr.Message, "episode not found")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.HasCode("authorization_pending"); got != tt.want {
+				t.Errorf("HasCode = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -82,9 +82,17 @@ type episodeShowResponse struct {
 	Episode episodeResponse `json:"episode"`
 }
 
+func (r *episodeShowResponse) UnmarshalJSON(data []byte) error {
+	return api.UnmarshalObject(data, "episode", &r.Episode)
+}
+
 // episodeListResponse is the response from GET /api/v1/episodes.
 type episodeListResponse struct {
 	Episodes []episodeResponse `json:"episodes"`
+}
+
+func (r *episodeListResponse) UnmarshalJSON(data []byte) error {
+	return api.UnmarshalList(data, "episodes", &r.Episodes)
 }
 
 // --- parent command ---

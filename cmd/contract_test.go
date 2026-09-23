@@ -78,7 +78,7 @@ var contractCases = []contractCase{
 	{
 		"error",
 		api.ErrorDetail{},
-		[]string{"components", "schemas", "Error", "properties", "error", "properties"},
+		[]string{"paths", "/api/v1/episodes", "post", "responses", "422", "content", "application/json", "schema", "properties", "error", "properties"},
 	},
 }
 

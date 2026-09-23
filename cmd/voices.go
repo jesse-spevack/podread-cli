@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jspevack/podread-cli/internal/api"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +25,10 @@ type voiceResponse struct {
 // voicesListResponse is the response from GET /api/v1/voices.
 type voicesListResponse struct {
 	Voices []voiceResponse `json:"voices"`
+}
+
+func (r *voicesListResponse) UnmarshalJSON(data []byte) error {
+	return api.UnmarshalList(data, "voices", &r.Voices)
 }
 
 var voicesCmd = &cobra.Command{

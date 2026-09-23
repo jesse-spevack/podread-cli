@@ -91,7 +91,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		if err := client.Post("/api/v1/auth/device_tokens", tokenReq, &tokenResp); err != nil {
 			var apiErr *api.APIError
 			if errors.As(err, &apiErr) {
-				if apiErr.StatusCode == 400 && apiErr.Message == "authorization_pending" {
+				if apiErr.StatusCode == 400 && apiErr.HasCode("authorization_pending") {
 					consecutiveErrors = 0
 					continue
 				}

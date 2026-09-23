@@ -42,6 +42,7 @@ type Client struct {
 // APIError represents an error response from the API.
 type APIError struct {
 	StatusCode int
+	Code       string
 	Message    string
 }
 
@@ -50,6 +51,27 @@ func (e *APIError) Error() string {
 		return fmt.Sprintf("API error (%d): %s", e.StatusCode, e.Message)
 	}
 	return fmt.Sprintf("API error (%d)", e.StatusCode)
+}
+
+// HasCode reports whether the error carries code. An older API sends the code as the message.
+func (e *APIError) HasCode(code string) bool {
+	return e.Code == code || e.Message == code
+}
+
+// errorDetail is the "error" value of an error response: a string, or an object with a message.
+type errorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (d *errorDetail) UnmarshalJSON(data []byte) error {
+	var text string
+	if json.Unmarshal(data, &text) == nil {
+		d.Message = text
+		return nil
+	}
+	type fields errorDetail
+	return json.Unmarshal(data, (*fields)(d))
 }
 
 // NewClient creates a new API client. If token is empty, requests are sent
@@ -197,10 +219,11 @@ func (c *Client) do(req *http.Request, result interface{}) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		apiErr := &APIError{StatusCode: resp.StatusCode}
 		var errResp struct {
-			Error string `json:"error"`
+			Error errorDetail `json:"error"`
 		}
-		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error != "" {
-			apiErr.Message = errResp.Error
+		if json.Unmarshal(respBody, &errResp) == nil {
+			apiErr.Code = errResp.Error.Code
+			apiErr.Message = errResp.Error.Message
 		}
 		return apiErr
 	}

@@ -77,22 +77,9 @@ type episodeResponse struct {
 	CreatedAt       string `json:"created_at"`
 }
 
-// episodeShowResponse is the response from GET /api/v1/episodes/:id.
-type episodeShowResponse struct {
-	Episode episodeResponse `json:"episode"`
-}
-
-func (r *episodeShowResponse) UnmarshalJSON(data []byte) error {
-	return api.UnmarshalObject(data, "episode", &r.Episode)
-}
-
 // episodeListResponse is the response from GET /api/v1/episodes.
 type episodeListResponse struct {
-	Episodes []episodeResponse `json:"episodes"`
-}
-
-func (r *episodeListResponse) UnmarshalJSON(data []byte) error {
-	return api.UnmarshalList(data, "episodes", &r.Episodes)
+	Data []episodeResponse `json:"data"`
 }
 
 // --- parent command ---
@@ -232,8 +219,8 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 		}
 		time.Sleep(3 * time.Second)
 
-		var showResp episodeShowResponse
-		if err := client.Get("/api/v1/episodes/"+url.PathEscape(ep.ID), &showResp); err != nil {
+		var current episodeResponse
+		if err := client.Get("/api/v1/episodes/"+url.PathEscape(ep.ID), &current); err != nil {
 			var apiErr *api.APIError
 			if errors.As(err, &apiErr) {
 				// Server returned an error status — this is not transient, bail.
@@ -247,7 +234,7 @@ func runEpisodeCreate(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: connection error, retrying... (%d/%d)\n", consecutiveErrors, maxConsecutiveErrors)
 			continue
 		}
-		ep = showResp.Episode
+		ep = current
 		consecutiveErrors = 0 // Reset on success
 
 		if ep.Status != lastStatus {
@@ -286,12 +273,12 @@ func runEpisodeStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var resp episodeShowResponse
-	if err := client.Get("/api/v1/episodes/"+url.PathEscape(args[0]), &resp); err != nil {
+	var ep episodeResponse
+	if err := client.Get("/api/v1/episodes/"+url.PathEscape(args[0]), &ep); err != nil {
 		return fmt.Errorf("fetching episode: %w", err)
 	}
 
-	return printEpisode(cmd, resp.Episode, jsonFlag)
+	return printEpisode(cmd, ep, jsonFlag)
 }
 
 // --- episode list ---
@@ -325,7 +312,7 @@ func runEpisodeList(cmd *cobra.Command, args []string) error {
 	}
 
 	if jsonFlag {
-		data, err := json.MarshalIndent(listResp.Episodes, "", "  ")
+		data, err := json.MarshalIndent(listResp.Data, "", "  ")
 		if err != nil {
 			return fmt.Errorf("encoding JSON: %w", err)
 		}
@@ -333,13 +320,13 @@ func runEpisodeList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if len(listResp.Episodes) == 0 {
+	if len(listResp.Data) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "No episodes found")
 		return nil
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "%s  %-12s  %s\n", "ID", "STATUS", "TITLE")
-	for _, ep := range listResp.Episodes {
+	for _, ep := range listResp.Data {
 		title := ep.Title
 		if title == "" {
 			title = "(untitled)"

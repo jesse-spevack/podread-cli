@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/jspevack/podread-cli/internal/api"
 	"github.com/spf13/cobra"
 )
 
@@ -24,11 +23,7 @@ type voiceResponse struct {
 
 // voicesListResponse is the response from GET /api/v1/voices.
 type voicesListResponse struct {
-	Voices []voiceResponse `json:"voices"`
-}
-
-func (r *voicesListResponse) UnmarshalJSON(data []byte) error {
-	return api.UnmarshalList(data, "voices", &r.Voices)
+	Data []voiceResponse `json:"data"`
 }
 
 var voicesCmd = &cobra.Command{
@@ -52,7 +47,7 @@ func runVoices(cmd *cobra.Command, args []string) error {
 	}
 
 	if jsonFlag {
-		data, err := json.MarshalIndent(resp.Voices, "", "  ")
+		data, err := json.MarshalIndent(resp.Data, "", "  ")
 		if err != nil {
 			return fmt.Errorf("encoding JSON: %w", err)
 		}
@@ -60,13 +55,13 @@ func runVoices(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if len(resp.Voices) == 0 {
+	if len(resp.Data) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "No voices available")
 		return nil
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-10s  %-10s  %s\n", "ID", "NAME", "ACCENT", "GENDER")
-	for _, v := range resp.Voices {
+	for _, v := range resp.Data {
 		line := fmt.Sprintf("%-12s %-10s", v.ID, v.Name)
 		if v.Accent != "" {
 			line += fmt.Sprintf("  %-10s", v.Accent)

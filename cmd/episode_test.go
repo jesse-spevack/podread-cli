@@ -135,50 +135,32 @@ func TestEpisodeCreateRequest_FormFields(t *testing.T) {
 	}
 }
 
-func TestEpisodeStatus_ReadsBothShapes(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"wrapped", `{"episode":{"id":"ep_1","title":"A Title","status":"complete","created_at":"2026-09-22T00:00:00Z"}}`},
-		{"bare", `{"object":"episode","id":"ep_1","title":"A Title","status":"complete","created_at":"2026-09-22T00:00:00Z"}`},
+func TestEpisodeStatus_PrintsEpisode(t *testing.T) {
+	serveJSON(t, `{"object":"episode","id":"ep_1","title":"A Title","status":"complete","created_at":"2026-09-22T00:00:00Z"}`)
+	out := captureOutput(t, episodeStatusCmd)
+
+	if err := runEpisodeStatus(episodeStatusCmd, []string{"ep_1"}); err != nil {
+		t.Fatalf("runEpisodeStatus: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			serveJSON(t, tt.body)
-			out := captureOutput(t, episodeStatusCmd)
-
-			if err := runEpisodeStatus(episodeStatusCmd, []string{"ep_1"}); err != nil {
-				t.Fatalf("runEpisodeStatus: %v", err)
-			}
-
-			want := "ID:     ep_1\nTitle:  A Title\nStatus: complete\n"
-			if out.String() != want {
-				t.Errorf("output = %q, want %q", out.String(), want)
-			}
-		})
+	want := "ID:     ep_1\nTitle:  A Title\nStatus: complete\n"
+	if out.String() != want {
+		t.Errorf("output = %q, want %q", out.String(), want)
 	}
 }
 
-func TestEpisodeList_ReadsBothShapes(t *testing.T) {
+func TestEpisodeList_ReadsListObject(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
 		want string
 	}{
 		{
-			"keyed",
-			`{"episodes":[{"id":"ep_1","title":"One","status":"complete","created_at":""},{"id":"ep_2","title":"","status":"processing","created_at":""}]}`,
+			"two episodes",
+			`{"object":"list","data":[{"object":"episode","id":"ep_1","title":"One","status":"complete","created_at":""},{"object":"episode","id":"ep_2","title":"","status":"processing","created_at":""}],"has_more":false,"page":1,"limit":10,"total":2}`,
 			"ID  STATUS        TITLE\nep_1  complete      One\nep_2  processing    (untitled)\n",
 		},
-		{
-			"list object",
-			`{"object":"list","data":[{"object":"episode","id":"ep_1","title":"One","status":"complete","created_at":""},{"object":"episode","id":"ep_2","title":"","status":"processing","created_at":""}],"has_more":false}`,
-			"ID  STATUS        TITLE\nep_1  complete      One\nep_2  processing    (untitled)\n",
-		},
-		{"keyed empty", `{"episodes":[]}`, "No episodes found\n"},
-		{"list object empty", `{"object":"list","data":[],"has_more":false}`, "No episodes found\n"},
+		{"empty", `{"object":"list","data":[],"has_more":false,"page":1,"limit":10,"total":0}`, "No episodes found\n"},
 	}
 
 	for _, tt := range tests {
@@ -197,57 +179,33 @@ func TestEpisodeList_ReadsBothShapes(t *testing.T) {
 	}
 }
 
-func TestEpisodeCreate_ReadsBothShapes(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"flat", `{"id":"ep_1","title":"A Title","status":"pending","created_at":""}`},
-		{"bare with object", `{"object":"episode","id":"ep_1","title":"A Title","status":"pending","created_at":""}`},
+func TestEpisodeCreate_PrintsEpisode(t *testing.T) {
+	serveJSON(t, `{"object":"episode","id":"ep_1","title":"A Title","status":"pending","created_at":""}`)
+	out := captureOutput(t, episodeCreateCmd)
+	episodeCreateCmd.Flags().Set("url", "https://example.com/article")
+	episodeCreateCmd.Flags().Set("no-wait", "true")
+
+	if err := runEpisodeCreate(episodeCreateCmd, nil); err != nil {
+		t.Fatalf("runEpisodeCreate: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			serveJSON(t, tt.body)
-			out := captureOutput(t, episodeCreateCmd)
-			episodeCreateCmd.Flags().Set("url", "https://example.com/article")
-			episodeCreateCmd.Flags().Set("no-wait", "true")
-
-			if err := runEpisodeCreate(episodeCreateCmd, nil); err != nil {
-				t.Fatalf("runEpisodeCreate: %v", err)
-			}
-
-			want := "ID:     ep_1\nTitle:  A Title\nStatus: pending\n"
-			if out.String() != want {
-				t.Errorf("output = %q, want %q", out.String(), want)
-			}
-		})
+	want := "ID:     ep_1\nTitle:  A Title\nStatus: pending\n"
+	if out.String() != want {
+		t.Errorf("output = %q, want %q", out.String(), want)
 	}
 }
 
 func TestEpisodeStatus_PrintsErrorMessage(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"string error", `{"error":"No episode with that id."}`},
-		{"object error", `{"error":{"type":"invalid_request_error","code":"not_found","message":"No episode with that id.","param":"id"}}`},
+	serveStatus(t, 404, `{"error":{"type":"invalid_request_error","code":"resource_missing","message":"No episode with that id.","param":"id"}}`)
+	captureOutput(t, episodeStatusCmd)
+
+	err := runEpisodeStatus(episodeStatusCmd, []string{"ep_1"})
+	if err == nil {
+		t.Fatal("expected an error")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			serveStatus(t, 404, tt.body)
-			captureOutput(t, episodeStatusCmd)
-
-			err := runEpisodeStatus(episodeStatusCmd, []string{"ep_1"})
-			if err == nil {
-				t.Fatal("expected an error")
-			}
-
-			want := "fetching episode: API error (404): No episode with that id."
-			if err.Error() != want {
-				t.Errorf("err = %q, want %q", err.Error(), want)
-			}
-		})
+	want := "fetching episode: API error (404): No episode with that id."
+	if err.Error() != want {
+		t.Errorf("err = %q, want %q", err.Error(), want)
 	}
 }

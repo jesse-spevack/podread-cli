@@ -38,28 +38,16 @@ func TestFormatAuthStatus(t *testing.T) {
 	}
 }
 
-func TestStatus_ReadsBothShapes(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"flat", `{"email":"u@example.com","tier":"free","credits_remaining":3,"character_limit":50000}`},
-		{"with object", `{"object":"account","email":"u@example.com","tier":"free","credits_remaining":3,"character_limit":50000}`},
+func TestStatus_PrintsAccount(t *testing.T) {
+	serveJSON(t, `{"object":"account","email":"u@example.com","tier":"free","credits_remaining":3,"character_limit":50000}`)
+	out := captureOutput(t, statusCmd)
+
+	if err := runStatus(statusCmd, nil); err != nil {
+		t.Fatalf("runStatus: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			serveJSON(t, tt.body)
-			out := captureOutput(t, statusCmd)
-
-			if err := runStatus(statusCmd, nil); err != nil {
-				t.Fatalf("runStatus: %v", err)
-			}
-
-			want := "Logged in as u@example.com (free)\nCredits remaining: 3\nCharacter limit: 50000\n"
-			if out.String() != want {
-				t.Errorf("output = %q, want %q", out.String(), want)
-			}
-		})
+	want := "Logged in as u@example.com (free)\nCredits remaining: 3\nCharacter limit: 50000\n"
+	if out.String() != want {
+		t.Errorf("output = %q, want %q", out.String(), want)
 	}
 }
